@@ -28,9 +28,14 @@ export const get = query({
     const exerciseDetails = await Promise.all(
       plan.exercises.map(async (planExercise) => {
         const exercise = await ctx.db.get(planExercise.exerciseId);
+        if (!exercise) return { ...planExercise, exercise: null };
+        
         return {
           ...planExercise,
-          exercise,
+          exercise: {
+            ...exercise,
+            imageUrl: exercise.imageId ? await ctx.storage.getUrl(exercise.imageId) : null,
+          },
         };
       })
     );

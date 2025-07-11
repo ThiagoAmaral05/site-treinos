@@ -31,16 +31,13 @@ function PlanDetailView({ planId, exercises, onBack, onEdit, onDelete }: {
     );
   }
 
-  const groupExercisesByDay = (exercises: any[]) => {
-    const grouped: Record<string, any[]> = {};
-    exercises.forEach(ex => {
-      if (!grouped[ex.dayOfWeek]) grouped[ex.dayOfWeek] = [];
-      grouped[ex.dayOfWeek].push(ex);
-    });
-    return grouped;
+  const getDayLabel = (dayValue: string) => {
+    return DAYS_OF_WEEK.find(d => d.value === dayValue)?.label || dayValue;
   };
 
-  const groupedExercises = groupExercisesByDay(planDetails.exercises);
+  const getDayShort = (dayValue: string) => {
+    return DAYS_OF_WEEK.find(d => d.value === dayValue)?.short || dayValue;
+  };
 
   return (
     <div className="space-y-6">
@@ -72,82 +69,74 @@ function PlanDetailView({ planId, exercises, onBack, onEdit, onDelete }: {
         <h2 className="text-2xl font-bold text-white">{planDetails.name}</h2>
         <div className="flex items-center gap-4 mt-2 text-sm text-gray-400">
           <span>{planDetails.exercises.length} exercícios</span>
-          <span>{Object.keys(groupedExercises).length} dias da semana</span>
+          {planDetails.exercises.length > 0 && (
+            <span className="flex items-center">
+              <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded mr-2">
+                {getDayShort(planDetails.exercises[0].dayOfWeek)}
+              </span>
+              {getDayLabel(planDetails.exercises[0].dayOfWeek)}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Days Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-        {DAYS_OF_WEEK.map((day) => {
-          const dayExercises = groupedExercises[day.value] || [];
-          if (dayExercises.length === 0) return null;
-
+      {/* Exercises Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {planDetails.exercises.map((planExercise, index) => {
+          const exercise = planExercise.exercise;
           return (
-            <div key={day.value} className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-              <h3 className="font-semibold text-white mb-4 flex items-center">
-                <span className="bg-blue-600 text-white text-sm px-3 py-1 rounded mr-3">
-                  {day.short}
-                </span>
-                {day.label}
-              </h3>
-              
-              <div className="space-y-4">
-                {dayExercises.map((planExercise, index) => {
-                  const exercise = planExercise.exercise;
-                  return (
-                    <div key={index} className="bg-gray-700 rounded-lg p-4">
-                      {/* Exercise Header */}
-                      <div className="flex items-start gap-4 mb-3">
-                        {exercise?.imageUrl && (
-                          <img
-                            src={exercise.imageUrl}
-                            alt={exercise.name}
-                            className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
-                          />
-                        )}
-                        <div className="flex-1">
-                          <h4 className="font-medium text-white text-lg">{exercise?.name}</h4>
-                          <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded mt-1 inline-block">
-                            {exercise?.muscleGroup}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Exercise Description */}
-                      {exercise?.description && (
-                        <div className="mb-3 p-3 bg-gray-600 rounded-lg">
-                          <p className="text-sm text-gray-300">{exercise.description}</p>
-                        </div>
-                      )}
-
-                      {/* Exercise Details */}
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div className="bg-gray-600 p-2 rounded">
-                          <span className="text-gray-400">Séries:</span>
-                          <span className="text-white font-medium ml-2">{planExercise.sets}</span>
-                        </div>
-                        <div className="bg-gray-600 p-2 rounded">
-                          <span className="text-gray-400">Repetições:</span>
-                          <span className="text-white font-medium ml-2">{planExercise.reps}</span>
-                        </div>
-                        {planExercise.weight > 0 && (
-                          <div className="bg-gray-600 p-2 rounded">
-                            <span className="text-gray-400">Carga:</span>
-                            <span className="text-white font-medium ml-2">{planExercise.weight}kg</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Exercise Notes */}
-                      {planExercise.notes && (
-                        <div className="mt-3 p-2 bg-yellow-900/30 border border-yellow-700/50 rounded">
-                          <p className="text-sm text-yellow-200">💡 {planExercise.notes}</p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+            <div key={index} className="bg-gray-800 border border-gray-700 rounded-lg p-6 hover:border-gray-600 transition-colors">
+              {/* Exercise Header */}
+              <div className="flex items-start gap-4 mb-4">
+                {exercise?.imageUrl && (
+                  <img
+                    src={exercise.imageUrl}
+                    alt={exercise.name}
+                    className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
+                  />
+                )}
+                <div className="flex-1">
+                  <h4 className="font-semibold text-white text-lg mb-1">{exercise?.name}</h4>
+                  <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded">
+                    {exercise?.muscleGroup}
+                  </span>
+                </div>
               </div>
+
+              {/* Exercise Description */}
+              {exercise?.description && (
+                <div className="mb-4 p-3 bg-gray-700 rounded-lg">
+                  <p className="text-sm text-gray-300">{exercise.description}</p>
+                </div>
+              )}
+
+              {/* Exercise Details */}
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div className="bg-gray-700 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-blue-400">{planExercise.sets}</div>
+                    <div className="text-xs text-gray-400">Séries</div>
+                  </div>
+                  <div className="bg-gray-700 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-green-400">{planExercise.reps}</div>
+                    <div className="text-xs text-gray-400">Repetições</div>
+                  </div>
+                </div>
+                
+                {planExercise.weight && planExercise.weight > 0 && (
+                  <div className="bg-gray-700 p-3 rounded-lg text-center">
+                    <div className="text-2xl font-bold text-purple-400">{planExercise.weight}kg</div>
+                    <div className="text-xs text-gray-400">Carga Sugerida</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Exercise Notes */}
+              {planExercise.notes && (
+                <div className="mt-4 p-3 bg-yellow-900/30 border border-yellow-700/50 rounded-lg">
+                  <p className="text-sm text-yellow-200">💡 {planExercise.notes}</p>
+                </div>
+              )}
             </div>
           );
         })}
@@ -167,6 +156,7 @@ export function WorkoutPlanner() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewingPlanId, setViewingPlanId] = useState<string | null>(null);
   const [planName, setPlanName] = useState("");
+  const [planDayOfWeek, setPlanDayOfWeek] = useState("monday");
   const [planExercises, setPlanExercises] = useState<any[]>([]);
 
   const addExercise = () => {
@@ -174,7 +164,6 @@ export function WorkoutPlanner() {
       ...planExercises,
       {
         exerciseId: "",
-        dayOfWeek: "monday",
         sets: 3,
         reps: "10",
         weight: 0,
@@ -201,7 +190,10 @@ export function WorkoutPlanner() {
     }
 
     try {
-      const validExercises = planExercises.filter(ex => ex.exerciseId);
+      const validExercises = planExercises.filter(ex => ex.exerciseId).map(ex => ({
+        ...ex,
+        dayOfWeek: planDayOfWeek
+      }));
       
       if (editingId) {
         await updatePlan({
@@ -221,6 +213,7 @@ export function WorkoutPlanner() {
       }
 
       setPlanName("");
+      setPlanDayOfWeek("monday");
       setPlanExercises([]);
     } catch (error) {
       toast.error("Erro ao salvar plano");
@@ -232,16 +225,16 @@ export function WorkoutPlanner() {
     if (plan) {
       setEditingId(planId);
       setPlanName(plan.name);
+      setPlanDayOfWeek(plan.exercises[0]?.dayOfWeek || "monday");
       setPlanExercises(plan.exercises.map((ex: any) => ({
         exerciseId: ex.exerciseId,
-        dayOfWeek: ex.dayOfWeek,
         sets: ex.sets,
         reps: ex.reps,
         weight: ex.weight || 0,
         notes: ex.notes || "",
       })));
       setIsCreating(true);
-      setViewingPlanId(null); // Sair da visualização de detalhes
+      setViewingPlanId(null);
     }
   };
 
@@ -250,7 +243,7 @@ export function WorkoutPlanner() {
       try {
         await removePlan({ id: id as any });
         toast.success("Plano excluído!");
-        setViewingPlanId(null); // Voltar à lista se estava visualizando
+        setViewingPlanId(null);
       } catch (error) {
         toast.error("Erro ao excluir plano");
       }
@@ -261,6 +254,7 @@ export function WorkoutPlanner() {
     setIsCreating(false);
     setEditingId(null);
     setPlanName("");
+    setPlanDayOfWeek("monday");
     setPlanExercises([]);
   };
 
@@ -270,6 +264,14 @@ export function WorkoutPlanner() {
 
   const handleBackToList = () => {
     setViewingPlanId(null);
+  };
+
+  const getDayLabel = (dayValue: string) => {
+    return DAYS_OF_WEEK.find(d => d.value === dayValue)?.label || dayValue;
+  };
+
+  const getDayShort = (dayValue: string) => {
+    return DAYS_OF_WEEK.find(d => d.value === dayValue)?.short || dayValue;
   };
 
   // Se estiver visualizando uma ficha específica
@@ -311,16 +313,33 @@ export function WorkoutPlanner() {
             {editingId ? "Editar Ficha" : "Nova Ficha"}
           </h4>
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium mb-2 text-gray-300">Nome da Ficha *</label>
-              <input
-                type="text"
-                value={planName}
-                onChange={(e) => setPlanName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-700 text-white placeholder-gray-400"
-                placeholder="Ex: Treino A/B/C, Push/Pull/Legs"
-                required
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-300">Nome da Ficha *</label>
+                <input
+                  type="text"
+                  value={planName}
+                  onChange={(e) => setPlanName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-700 text-white placeholder-gray-400"
+                  placeholder="Ex: Treino de Peito, Treino de Pernas"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-300">Dia da Semana *</label>
+                <select
+                  value={planDayOfWeek}
+                  onChange={(e) => setPlanDayOfWeek(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-gray-700 text-white"
+                  required
+                >
+                  {DAYS_OF_WEEK.map((day) => (
+                    <option key={day.value} value={day.value}>
+                      {day.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div>
@@ -339,7 +358,7 @@ export function WorkoutPlanner() {
                 {planExercises.map((exercise, index) => (
                   <div key={index} className="border border-gray-600 p-4 rounded-lg bg-gray-700">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
-                      <div>
+                      <div className="md:col-span-2 lg:col-span-1">
                         <label className="block text-xs font-medium mb-1 text-gray-300">Exercício</label>
                         <select
                           value={exercise.exerciseId}
@@ -350,20 +369,6 @@ export function WorkoutPlanner() {
                           {exercises.map((ex) => (
                             <option key={ex._id} value={ex._id}>
                               {ex.name} ({ex.muscleGroup})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium mb-1 text-gray-300">Dia</label>
-                        <select
-                          value={exercise.dayOfWeek}
-                          onChange={(e) => updateExercise(index, "dayOfWeek", e.target.value)}
-                          className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-600 text-white"
-                        >
-                          {DAYS_OF_WEEK.map((day) => (
-                            <option key={day.value} value={day.value}>
-                              {day.label}
                             </option>
                           ))}
                         </select>
@@ -388,8 +393,6 @@ export function WorkoutPlanner() {
                           placeholder="Ex: 8-12"
                         />
                       </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                       <div>
                         <label className="block text-xs font-medium mb-1 text-gray-300">Carga (kg)</label>
                         <input
@@ -400,16 +403,16 @@ export function WorkoutPlanner() {
                           step="0.5"
                         />
                       </div>
-                      <div>
-                        <label className="block text-xs font-medium mb-1 text-gray-300">Observações</label>
-                        <input
-                          type="text"
-                          value={exercise.notes}
-                          onChange={(e) => updateExercise(index, "notes", e.target.value)}
-                          className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-600 text-white placeholder-gray-400"
-                          placeholder="Ex: Descanso 60s, Cadência lenta"
-                        />
-                      </div>
+                    </div>
+                    <div className="mb-3">
+                      <label className="block text-xs font-medium mb-1 text-gray-300">Observações</label>
+                      <input
+                        type="text"
+                        value={exercise.notes}
+                        onChange={(e) => updateExercise(index, "notes", e.target.value)}
+                        className="w-full px-2 py-1 border border-gray-600 rounded text-sm bg-gray-600 text-white placeholder-gray-400"
+                        placeholder="Ex: Descanso 60s, Cadência lenta"
+                      />
                     </div>
                     <button
                       type="button"
@@ -480,24 +483,15 @@ export function WorkoutPlanner() {
                 </div>
                 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-400">Dias da semana:</span>
-                  <span className="text-white font-medium">
-                    {[...new Set(plan.exercises.map(ex => ex.dayOfWeek))].length}
+                  <span className="text-gray-400">Dia da semana:</span>
+                  <span className="flex items-center">
+                    <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded mr-2">
+                      {getDayShort(plan.exercises[0]?.dayOfWeek)}
+                    </span>
+                    <span className="text-white font-medium text-xs">
+                      {getDayLabel(plan.exercises[0]?.dayOfWeek)}
+                    </span>
                   </span>
-                </div>
-
-                <div className="flex flex-wrap gap-1 mt-3">
-                  {[...new Set(plan.exercises.map(ex => ex.dayOfWeek))].map(day => {
-                    const dayInfo = DAYS_OF_WEEK.find(d => d.value === day);
-                    return (
-                      <span 
-                        key={day}
-                        className="bg-blue-600 text-white text-xs px-2 py-1 rounded"
-                      >
-                        {dayInfo?.short}
-                      </span>
-                    );
-                  })}
                 </div>
               </div>
 

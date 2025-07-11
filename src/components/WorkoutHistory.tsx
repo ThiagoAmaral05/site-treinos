@@ -5,8 +5,10 @@ import { toast } from "sonner";
 
 export function WorkoutHistory() {
   const [selectedExercise, setSelectedExercise] = useState<string>("");
+  const [selectedPlan, setSelectedPlan] = useState<string>("");
   
   const exercises = useQuery(api.exercises.list) || [];
+  const workoutPlans = useQuery(api.workoutPlans.list) || [];
   const workoutHistory = useQuery(api.workoutSessions.getHistory, { limit: 30 }) || [];
   const exerciseHistory = useQuery(
     api.workoutSessions.getExerciseHistory,
@@ -46,14 +48,47 @@ export function WorkoutHistory() {
 
   const getOverallStats = () => {
     const totalWorkouts = workoutHistory.length;
-    const totalVolume = workoutHistory.reduce((total, session) => total + getTotalVolume(session), 0);
     const totalDuration = workoutHistory.reduce((total, session) => total + (session.duration || 0), 0);
     const avgDuration = totalWorkouts > 0 ? Math.round(totalDuration / totalWorkouts) : 0;
+    
+    // Calculate average weight across all sets
+    let totalWeight = 0;
+    let totalSets = 0;
+    
+    workoutHistory.forEach(session => {
+      session.exercises.forEach((ex: any) => {
+        ex.sets.forEach((set: any) => {
+          if (set.weight > 0) {
+            totalWeight += set.weight;
+            totalSets++;
+          }
+        });
+      });
+    });
+    
+    const avgWeight = totalSets > 0 ? Math.round(totalWeight / totalSets) : 0;
 
-    return { totalWorkouts, totalVolume, avgDuration };
+    return { totalWorkouts, avgWeight, avgDuration };
+  };
+
+  // Filter workout history based on selected plan
+  const getFilteredHistory = () => {
+    if (!selectedPlan) return workoutHistory;
+    
+    const selectedPlanData = workoutPlans.find(p => p._id === selectedPlan);
+    if (!selectedPlanData) return workoutHistory;
+    
+    const planExerciseIds = selectedPlanData.exercises.map(ex => ex.exerciseId);
+    
+    return workoutHistory.filter(session => {
+      return session.exercises.some((ex: any) => 
+        planExerciseIds.includes(ex.exerciseId)
+      );
+    });
   };
 
   const stats = getOverallStats();
+  const filteredHistory = getFilteredHistory();
 
   return (
     <div className="space-y-6">
@@ -66,8 +101,8 @@ export function WorkoutHistory() {
             <div className="text-sm text-gray-400">Treinos Realizados</div>
           </div>
           <div className="text-center">
-            <div className="text-3xl font-bold text-green-400">{stats.totalVolume.toFixed(0)}kg</div>
-            <div className="text-sm text-gray-400">Volume Total</div>
+            <div className="text-3xl font-bold text-green-400">{stats.avgWeight}kg</div>
+            <div className="text-sm text-gray-400">Carga Média</div>
           </div>
           <div className="text-center">
             <div className="text-3xl font-bold text-purple-400">{stats.avgDuration}min</div>
@@ -76,21 +111,60 @@ export function WorkoutHistory() {
         </div>
       </div>
 
-      {/* Exercise History Filter */}
+      {/* Filters */}
       <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-        <h4 className="text-lg font-medium text-white mb-4">Filtrar por Exercício</h4>
-        <select
-          value={selectedExercise}
-          onChange={(e) => setSelectedExercise(e.target.value)}
-          className="w-full md:w-1/2 px-3 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white"
-        >
-          <option value="">Todos os treinos</option>
-          {exercises.map((ex) => (
-            <option key={ex._id} value={ex._id}>
-              {ex.name} ({ex.muscleGroup})
-            </option>
-          ))}
-        </select>
+        <h4 className="text-lg font-medium text-white mb-4">Filtros</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-300">Filtrar por Exercício</label>
+            <select
+              value={selectedExercise}
+              onChange={(e) => {
+                setSelectedExercise(e.target.value);
+                setSelectedPlan("");
+              }}
+              className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white"
+            >
+              <option value="">Todos os exercícios</option>
+              {exercises.map((ex) => (
+                <option key={ex._id} value={ex._id}>
+                  {ex.name} ({ex.muscleGroup})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-300">Filtrar por Ficha</label>
+            <select
+              value={selectedPlan}
+              onChange={(e) => {
+                setSelectedPlan(e.target.value);
+                setSelectedExercise("");
+              }}
+              className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white"
+            >
+              <option value="">Todas as fichas</option>
+              {workoutPlans.map((plan) => (
+                <option key={plan._id} value={plan._id}>
+                  {plan.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {(selectedExercise || selectedPlan) && (
+          <div className="mt-4">
+            <button
+              onClick={() => {
+                setSelectedExercise("");
+                setSelectedPlan("");
+              }}
+              className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-500 transition-colors text-sm"
+            >
+              Limpar Filtros
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Exercise-specific History */}
@@ -122,11 +196,22 @@ export function WorkoutHistory() {
         </div>
       )}
 
+      {/* Plan-filtered History */}
+      {selectedPlan && (
+        <div>
+          <h4 className="text-lg font-medium text-white mb-4">
+            Histórico da Ficha: {workoutPlans.find(p => p._id === selectedPlan)?.name}
+          </h4>
+        </div>
+      )}
+
       {/* General Workout History */}
       {!selectedExercise && (
         <div className="space-y-4">
-          <h4 className="text-lg font-medium text-white">Histórico de Treinos</h4>
-          {workoutHistory.map((session) => (
+          <h4 className="text-lg font-medium text-white">
+            {selectedPlan ? `Treinos da Ficha: ${workoutPlans.find(p => p._id === selectedPlan)?.name}` : 'Histórico de Treinos'}
+          </h4>
+          {filteredHistory.map((session) => (
             <div key={session._id} className="bg-gray-800 border border-gray-700 rounded-lg p-6">
               <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
                 <div>
@@ -189,6 +274,16 @@ export function WorkoutHistory() {
           <div className="text-6xl mb-4">📊</div>
           <h3 className="text-lg font-medium text-white mb-2">Nenhum treino registrado</h3>
           <p className="text-gray-400 mb-6">Comece registrando seus treinos para acompanhar seu progresso</p>
+        </div>
+      )}
+
+      {filteredHistory.length === 0 && selectedPlan && workoutHistory.length > 0 && (
+        <div className="text-center py-12 bg-gray-800 border border-gray-700 rounded-lg">
+          <div className="text-6xl mb-4">🔍</div>
+          <h3 className="text-lg font-medium text-white mb-2">Nenhum treino encontrado</h3>
+          <p className="text-gray-400 mb-6">
+            Não há treinos registrados para a ficha selecionada
+          </p>
         </div>
       )}
     </div>

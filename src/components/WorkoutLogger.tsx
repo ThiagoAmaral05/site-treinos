@@ -13,11 +13,6 @@ const DAYS_OF_WEEK = [
   { value: "sunday", label: "Domingo", short: "DOM" },
 ];
 
-const getDayOfWeekValue = (date: Date) => {
-  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  return dayNames[date.getDay()];
-};
-
 export function WorkoutLogger() {
   // Get today's date in local timezone to avoid timezone issues
   const getLocalDateString = (date: Date = new Date()) => {
@@ -28,14 +23,12 @@ export function WorkoutLogger() {
   };
   
   const today = getLocalDateString();
-  const todayDayOfWeek = getDayOfWeekValue(new Date());
   
   const [selectedDate, setSelectedDate] = useState(today);
   const [duration, setDuration] = useState<number>(0);
   const [notes, setNotes] = useState("");
   const [workoutExercises, setWorkoutExercises] = useState<any[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<string>("");
-  const [workoutMode, setWorkoutMode] = useState<"manual" | "plan">("manual");
   const [workoutStarted, setWorkoutStarted] = useState(false);
 
   const exercises = useQuery(api.exercises.list) || [];
@@ -60,24 +53,15 @@ export function WorkoutLogger() {
       setNotes("");
       setWorkoutExercises([]);
       setWorkoutStarted(false);
-      setWorkoutMode("manual");
       setSelectedPlan("");
     }
   }, [todaySession]);
 
-  const loadPlanForToday = (planId: string) => {
+  const startPlanWorkout = (planId: string) => {
     const plan = workoutPlans.find(p => p._id === planId);
     if (!plan) return;
 
-    const currentDayOfWeek = getDayOfWeekValue(new Date(selectedDate));
-    const todayExercises = plan.exercises.filter(ex => ex.dayOfWeek === currentDayOfWeek);
-
-    if (todayExercises.length === 0) {
-      toast.info(`Nenhum exercício programado para hoje (${DAYS_OF_WEEK.find(d => d.value === currentDayOfWeek)?.label}) nesta ficha`);
-      return;
-    }
-
-    const planWorkoutExercises = todayExercises.map(planEx => {
+    const planWorkoutExercises = plan.exercises.map(planEx => {
       const exercise = exercises.find(ex => ex._id === planEx.exerciseId);
       return {
         exerciseId: planEx.exerciseId,
@@ -92,37 +76,9 @@ export function WorkoutLogger() {
     });
 
     setWorkoutExercises(planWorkoutExercises);
-    setWorkoutMode("plan");
+    setSelectedPlan(planId);
     setWorkoutStarted(true);
-    toast.success(`Ficha "${plan.name}" carregada para hoje!`);
-  };
-
-  const startManualWorkout = () => {
-    setWorkoutStarted(true);
-    setWorkoutMode("manual");
-    addExercise();
-  };
-
-  const addExercise = () => {
-    setWorkoutExercises([
-      ...workoutExercises,
-      {
-        exerciseId: "",
-        exercise: null,
-        sets: [{ reps: 0, weight: 0, completed: false }],
-      },
-    ]);
-  };
-
-  const updateExercise = (index: number, exerciseId: string) => {
-    const exercise = exercises.find(ex => ex._id === exerciseId);
-    const updated = [...workoutExercises];
-    updated[index] = {
-      ...updated[index],
-      exerciseId,
-      exercise,
-    };
-    setWorkoutExercises(updated);
+    toast.success(`Ficha "${plan.name}" carregada!`);
   };
 
   const addSet = (exerciseIndex: number) => {
@@ -144,10 +100,6 @@ export function WorkoutLogger() {
     const updated = [...workoutExercises];
     updated[exerciseIndex].sets = updated[exerciseIndex].sets.filter((_: any, i: number) => i !== setIndex);
     setWorkoutExercises(updated);
-  };
-
-  const removeExercise = (index: number) => {
-    setWorkoutExercises(workoutExercises.filter((_, i) => i !== index));
   };
 
   const handleSave = async () => {
@@ -181,7 +133,6 @@ export function WorkoutLogger() {
         
         // Reset all local state
         setWorkoutExercises([]);
-        setWorkoutMode("manual");
         setSelectedPlan("");
         setDuration(0);
         setNotes("");
@@ -212,15 +163,14 @@ export function WorkoutLogger() {
     }, 0);
   };
 
-  const getCurrentDayPlans = () => {
-    const currentDayOfWeek = getDayOfWeekValue(new Date(selectedDate));
-    return workoutPlans.filter(plan => 
-      plan.exercises.some(ex => ex.dayOfWeek === currentDayOfWeek)
-    );
+  const getDayLabel = (dayValue: string) => {
+    return DAYS_OF_WEEK.find(d => d.value === dayValue)?.label || dayValue;
   };
 
-  const currentDayPlans = getCurrentDayPlans();
-  const currentDayName = DAYS_OF_WEEK.find(d => d.value === getDayOfWeekValue(new Date(selectedDate)))?.label;
+  const getSelectedPlanName = () => {
+    const plan = workoutPlans.find(p => p._id === selectedPlan);
+    return plan?.name || "";
+  };
 
   // If workout hasn't started, show the start screen
   if (!workoutStarted) {
@@ -231,7 +181,7 @@ export function WorkoutLogger() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
             <div>
               <h3 className="text-lg font-medium text-white">Treino do Dia</h3>
-              <p className="text-sm text-gray-400">Escolha como começar seu treino</p>
+              <p className="text-sm text-gray-400">Escolha uma ficha de treino para começar</p>
             </div>
             <div className="flex items-center gap-4">
               <input
@@ -244,47 +194,35 @@ export function WorkoutLogger() {
           </div>
         </div>
 
-        {/* Start Workout Options */}
-        <div className="text-center py-12 bg-gray-800 border border-gray-700 rounded-lg">
+        {/* Plan Selection Header */}
+        <div className="text-center py-8 bg-gray-800 border border-gray-700 rounded-lg">
           <div className="text-6xl mb-4">💪</div>
           <h3 className="text-lg font-medium text-white mb-2">Pronto para treinar?</h3>
-          <p className="text-gray-400 mb-8">
-            Escolha uma ficha de treino ou comece um treino manual
+          <p className="text-gray-400">
+            Escolha uma das suas fichas de treino para começar
           </p>
-          
-          <div className="flex flex-col items-center gap-4">
-            <button
-              onClick={startManualWorkout}
-              className="bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium"
-            >
-              🏋️ Começar Treino Manual
-            </button>
-            
-            {currentDayPlans.length > 0 && (
-              <div className="text-sm text-gray-400 mb-4">ou escolha uma ficha:</div>
-            )}
-          </div>
         </div>
 
         {/* Plan Selection */}
-        {currentDayPlans.length > 0 && (
+        {workoutPlans.length > 0 ? (
           <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-            <h4 className="text-lg font-medium text-white mb-4">Fichas Disponíveis para {currentDayName}</h4>
+            <h4 className="text-lg font-medium text-white mb-4">Escolha uma Ficha de Treino</h4>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {currentDayPlans.map((plan) => {
-                const todayExercises = plan.exercises.filter(ex => 
-                  ex.dayOfWeek === getDayOfWeekValue(new Date(selectedDate))
-                );
+              {workoutPlans.map((plan) => {
+                const dayLabel = getDayLabel(plan.exercises[0]?.dayOfWeek);
                 
                 return (
-                  <div key={plan._id} className="bg-gray-700 border border-gray-600 rounded-lg p-4">
+                  <div key={plan._id} className="bg-gray-700 border border-gray-600 rounded-lg p-4 hover:border-blue-500 transition-colors">
                     <h5 className="font-medium text-white mb-2">{plan.name}</h5>
-                    <p className="text-sm text-gray-400 mb-3">
-                      {todayExercises.length} exercícios para hoje
+                    <p className="text-sm text-gray-400 mb-1">
+                      {plan.exercises.length} exercícios
+                    </p>
+                    <p className="text-sm text-blue-400 mb-3">
+                      {dayLabel}
                     </p>
                     <button
-                      onClick={() => loadPlanForToday(plan._id)}
+                      onClick={() => startPlanWorkout(plan._id)}
                       className="w-full bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 transition-colors text-sm"
                     >
                       Usar Esta Ficha
@@ -293,6 +231,14 @@ export function WorkoutLogger() {
                 );
               })}
             </div>
+          </div>
+        ) : (
+          <div className="text-center py-12 bg-gray-800 border border-gray-700 rounded-lg">
+            <div className="text-6xl mb-4">📋</div>
+            <h3 className="text-lg font-medium text-white mb-2">Nenhuma ficha de treino disponível</h3>
+            <p className="text-gray-400 mb-6">
+              Crie suas fichas de treino na aba "Fichas" para começar a treinar
+            </p>
           </div>
         )}
       </div>
@@ -306,7 +252,7 @@ export function WorkoutLogger() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
           <div>
             <h3 className="text-lg font-medium text-white">Treino em Andamento</h3>
-            <p className="text-sm text-gray-400">Registre seu treino e acompanhe seu progresso</p>
+            <p className="text-sm text-gray-400">Ficha: {getSelectedPlanName()}</p>
           </div>
           <div className="flex items-center gap-4">
             <input
@@ -347,10 +293,10 @@ export function WorkoutLogger() {
           </div>
         )}
 
-        {/* Workout Mode Indicator */}
+        {/* Actions */}
         <div className="mt-4 pt-4 border-t border-gray-600 flex justify-between items-center">
           <div className="text-sm text-gray-400">
-            {workoutMode === "plan" ? "🎯 Usando ficha de treino" : "✏️ Treino manual"}
+            🎯 Usando ficha de treino
           </div>
           <button
             onClick={clearWorkout}
@@ -394,25 +340,9 @@ export function WorkoutLogger() {
           <div key={exerciseIndex} className="bg-gray-800 border border-gray-700 rounded-lg p-6">
             <div className="flex justify-between items-center mb-4">
               <div className="flex-1">
-                <select
-                  value={workoutEx.exerciseId}
-                  onChange={(e) => updateExercise(exerciseIndex, e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white"
-                >
-                  <option value="">Selecione um exercício...</option>
-                  {exercises.map((ex) => (
-                    <option key={ex._id} value={ex._id}>
-                      {ex.name} ({ex.muscleGroup})
-                    </option>
-                  ))}
-                </select>
+                <h5 className="text-lg font-medium text-white">{workoutEx.exercise?.name}</h5>
+                <p className="text-sm text-gray-400">{workoutEx.exercise?.muscleGroup}</p>
               </div>
-              <button
-                onClick={() => removeExercise(exerciseIndex)}
-                className="ml-4 text-red-400 hover:text-red-300 p-2"
-              >
-                🗑️
-              </button>
             </div>
 
             {workoutEx.planNotes && (
@@ -421,81 +351,71 @@ export function WorkoutLogger() {
               </div>
             )}
 
-            {workoutEx.exerciseId && (
-              <div>
-                <div className="flex justify-between items-center mb-4">
-                  <h5 className="font-medium text-white">Séries</h5>
-                  <button
-                    onClick={() => addSet(exerciseIndex)}
-                    className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors"
-                  >
-                    + Série
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  {workoutEx.sets.map((set: any, setIndex: number) => (
-                    <div key={setIndex} className="flex items-center gap-3 bg-gray-700 p-4 rounded-lg">
-                      <span className="text-sm font-medium w-12 text-center text-white">
-                        #{setIndex + 1}
-                      </span>
-                      
-                      <div className="flex-1">
-                        <label className="block text-xs text-gray-400 mb-1">Repetições</label>
-                        <input
-                          type="number"
-                          value={set.reps}
-                          onChange={(e) => updateSet(exerciseIndex, setIndex, "reps", parseInt(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-600 rounded-lg text-sm bg-gray-600 text-white"
-                          min="0"
-                        />
-                      </div>
-
-                      <div className="flex-1">
-                        <label className="block text-xs text-gray-400 mb-1">Carga (kg)</label>
-                        <input
-                          type="number"
-                          value={set.weight}
-                          onChange={(e) => updateSet(exerciseIndex, setIndex, "weight", parseFloat(e.target.value) || 0)}
-                          className="w-full px-3 py-2 border border-gray-600 rounded-lg text-sm bg-gray-600 text-white"
-                          step="0.5"
-                          min="0"
-                        />
-                      </div>
-
-                      <div className="flex items-center">
-                        <label className="flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={set.completed}
-                            onChange={(e) => updateSet(exerciseIndex, setIndex, "completed", e.target.checked)}
-                            className="mr-2 w-4 h-4 text-blue-600 bg-gray-600 border-gray-500 rounded focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-white">Concluída</span>
-                        </label>
-                      </div>
-
-                      <button
-                        onClick={() => removeSet(exerciseIndex, setIndex)}
-                        className="text-red-400 hover:text-red-300 p-1"
-                      >
-                        ❌
-                      </button>
-                    </div>
-                  ))}
-                </div>
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h5 className="font-medium text-white">Séries</h5>
+                <button
+                  onClick={() => addSet(exerciseIndex)}
+                  className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors"
+                >
+                  + Série
+                </button>
               </div>
-            )}
+
+              <div className="space-y-3">
+                {workoutEx.sets.map((set: any, setIndex: number) => (
+                  <div key={setIndex} className="flex items-center gap-3 bg-gray-700 p-4 rounded-lg">
+                    <span className="text-sm font-medium w-12 text-center text-white">
+                      #{setIndex + 1}
+                    </span>
+                    
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-400 mb-1">Repetições</label>
+                      <input
+                        type="number"
+                        value={set.reps}
+                        onChange={(e) => updateSet(exerciseIndex, setIndex, "reps", parseInt(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-600 rounded-lg text-sm bg-gray-600 text-white"
+                        min="0"
+                      />
+                    </div>
+
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-400 mb-1">Carga (kg)</label>
+                      <input
+                        type="number"
+                        value={set.weight}
+                        onChange={(e) => updateSet(exerciseIndex, setIndex, "weight", parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 border border-gray-600 rounded-lg text-sm bg-gray-600 text-white"
+                        step="0.5"
+                        min="0"
+                      />
+                    </div>
+
+                    <div className="flex items-center">
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={set.completed}
+                          onChange={(e) => updateSet(exerciseIndex, setIndex, "completed", e.target.checked)}
+                          className="mr-2 w-4 h-4 text-blue-600 bg-gray-600 border-gray-500 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-white">Concluída</span>
+                      </label>
+                    </div>
+
+                    <button
+                      onClick={() => removeSet(exerciseIndex, setIndex)}
+                      className="text-red-400 hover:text-red-300 p-1"
+                    >
+                      ❌
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         ))}
-
-        <button
-          onClick={addExercise}
-          className="w-full border-2 border-dashed border-gray-600 rounded-lg p-8 text-gray-400 hover:border-blue-400 hover:text-blue-400 transition-colors"
-        >
-          <div className="text-4xl mb-2">+</div>
-          <div>Adicionar Exercício</div>
-        </button>
       </div>
     </div>
   );
