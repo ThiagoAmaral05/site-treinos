@@ -17,7 +17,7 @@ export default function App() {
 }
 
 function Content() {
-  const loggedInUser = useQuery(api.auth.loggedInUser);
+  const loggedInUser = useQuery(api.users.getCurrentUser);
 
   if (loggedInUser === undefined) {
     return (

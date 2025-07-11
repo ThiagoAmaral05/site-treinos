@@ -12,7 +12,7 @@ type Tab = "exercises" | "planner" | "logger" | "history";
 export function GymTracker() {
   const [activeTab, setActiveTab] = useState<Tab>("logger");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const loggedInUser = useQuery(api.auth.loggedInUser);
+  const loggedInUser = useQuery(api.users.getCurrentUser);
 
   const tabs = [
     { id: "logger" as Tab, label: "Treino Hoje", icon: "📝", description: "Registre seu treino atual" },

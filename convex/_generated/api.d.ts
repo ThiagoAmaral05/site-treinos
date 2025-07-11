@@ -17,6 +17,7 @@ import type * as auth from "../auth.js";
 import type * as exercises from "../exercises.js";
 import type * as http from "../http.js";
 import type * as router from "../router.js";
+import type * as users from "../users.js";
 import type * as workoutPlans from "../workoutPlans.js";
 import type * as workoutSessions from "../workoutSessions.js";
 
@@ -33,6 +34,7 @@ declare const fullApi: ApiFromModules<{
   exercises: typeof exercises;
   http: typeof http;
   router: typeof router;
+  users: typeof users;
   workoutPlans: typeof workoutPlans;
   workoutSessions: typeof workoutSessions;
 }>;
