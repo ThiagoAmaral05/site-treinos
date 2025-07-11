@@ -1,7 +1,6 @@
 import { Authenticated, Unauthenticated, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
-import { SignOutButton } from "./SignOutButton";
 import { Toaster } from "sonner";
 import { GymTracker } from "./components/GymTracker";
 
@@ -37,7 +36,7 @@ function Content() {
         <div className="min-h-screen flex items-center justify-center">
           <div className="max-w-md mx-auto">
             <div className="text-center mb-8">
-              <h1 className="text-4xl font-bold text-white mb-4">💪 Gym Tracker</h1>
+              <h1 className="text-4xl font-bold text-white mb-4">Gym Tracker</h1>
               <p className="text-xl text-gray-400">Faça login para começar a acompanhar seus treinos</p>
             </div>
             <SignInForm />

@@ -13,6 +13,149 @@ const DAYS_OF_WEEK = [
   { value: "sunday", label: "Domingo", short: "DOM" },
 ];
 
+// Componente para visualizar detalhes de uma ficha
+function PlanDetailView({ planId, exercises, onBack, onEdit, onDelete }: {
+  planId: string;
+  exercises: any[];
+  onBack: () => void;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const planDetails = useQuery(api.workoutPlans.get, { id: planId as any });
+
+  if (!planDetails) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+      </div>
+    );
+  }
+
+  const groupExercisesByDay = (exercises: any[]) => {
+    const grouped: Record<string, any[]> = {};
+    exercises.forEach(ex => {
+      if (!grouped[ex.dayOfWeek]) grouped[ex.dayOfWeek] = [];
+      grouped[ex.dayOfWeek].push(ex);
+    });
+    return grouped;
+  };
+
+  const groupedExercises = groupExercisesByDay(planDetails.exercises);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={onBack}
+            className="flex items-center text-blue-400 hover:text-blue-300 transition-colors"
+          >
+            <span className="mr-2">←</span>
+            Voltar às Fichas
+          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => onEdit(planId)}
+              className="text-blue-400 hover:text-blue-300 text-sm py-2 px-3 border border-blue-400 rounded hover:bg-blue-400/10 transition-colors"
+            >
+              Editar Ficha
+            </button>
+            <button
+              onClick={() => onDelete(planId)}
+              className="text-red-400 hover:text-red-300 text-sm py-2 px-3 border border-red-400 rounded hover:bg-red-400/10 transition-colors"
+            >
+              Excluir Ficha
+            </button>
+          </div>
+        </div>
+        <h2 className="text-2xl font-bold text-white">{planDetails.name}</h2>
+        <div className="flex items-center gap-4 mt-2 text-sm text-gray-400">
+          <span>{planDetails.exercises.length} exercícios</span>
+          <span>{Object.keys(groupedExercises).length} dias da semana</span>
+        </div>
+      </div>
+
+      {/* Days Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+        {DAYS_OF_WEEK.map((day) => {
+          const dayExercises = groupedExercises[day.value] || [];
+          if (dayExercises.length === 0) return null;
+
+          return (
+            <div key={day.value} className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+              <h3 className="font-semibold text-white mb-4 flex items-center">
+                <span className="bg-blue-600 text-white text-sm px-3 py-1 rounded mr-3">
+                  {day.short}
+                </span>
+                {day.label}
+              </h3>
+              
+              <div className="space-y-4">
+                {dayExercises.map((planExercise, index) => {
+                  const exercise = planExercise.exercise;
+                  return (
+                    <div key={index} className="bg-gray-700 rounded-lg p-4">
+                      {/* Exercise Header */}
+                      <div className="flex items-start gap-4 mb-3">
+                        {exercise?.imageUrl && (
+                          <img
+                            src={exercise.imageUrl}
+                            alt={exercise.name}
+                            className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
+                          />
+                        )}
+                        <div className="flex-1">
+                          <h4 className="font-medium text-white text-lg">{exercise?.name}</h4>
+                          <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded mt-1 inline-block">
+                            {exercise?.muscleGroup}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Exercise Description */}
+                      {exercise?.description && (
+                        <div className="mb-3 p-3 bg-gray-600 rounded-lg">
+                          <p className="text-sm text-gray-300">{exercise.description}</p>
+                        </div>
+                      )}
+
+                      {/* Exercise Details */}
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div className="bg-gray-600 p-2 rounded">
+                          <span className="text-gray-400">Séries:</span>
+                          <span className="text-white font-medium ml-2">{planExercise.sets}</span>
+                        </div>
+                        <div className="bg-gray-600 p-2 rounded">
+                          <span className="text-gray-400">Repetições:</span>
+                          <span className="text-white font-medium ml-2">{planExercise.reps}</span>
+                        </div>
+                        {planExercise.weight > 0 && (
+                          <div className="bg-gray-600 p-2 rounded">
+                            <span className="text-gray-400">Carga:</span>
+                            <span className="text-white font-medium ml-2">{planExercise.weight}kg</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Exercise Notes */}
+                      {planExercise.notes && (
+                        <div className="mt-3 p-2 bg-yellow-900/30 border border-yellow-700/50 rounded">
+                          <p className="text-sm text-yellow-200">💡 {planExercise.notes}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function WorkoutPlanner() {
   const exercises = useQuery(api.exercises.list) || [];
   const workoutPlans = useQuery(api.workoutPlans.list) || [];
@@ -22,6 +165,7 @@ export function WorkoutPlanner() {
 
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [viewingPlanId, setViewingPlanId] = useState<string | null>(null);
   const [planName, setPlanName] = useState("");
   const [planExercises, setPlanExercises] = useState<any[]>([]);
 
@@ -97,6 +241,7 @@ export function WorkoutPlanner() {
         notes: ex.notes || "",
       })));
       setIsCreating(true);
+      setViewingPlanId(null); // Sair da visualização de detalhes
     }
   };
 
@@ -105,6 +250,7 @@ export function WorkoutPlanner() {
       try {
         await removePlan({ id: id as any });
         toast.success("Plano excluído!");
+        setViewingPlanId(null); // Voltar à lista se estava visualizando
       } catch (error) {
         toast.error("Erro ao excluir plano");
       }
@@ -118,14 +264,26 @@ export function WorkoutPlanner() {
     setPlanExercises([]);
   };
 
-  const groupExercisesByDay = (exercises: any[]) => {
-    const grouped: Record<string, any[]> = {};
-    exercises.forEach(ex => {
-      if (!grouped[ex.dayOfWeek]) grouped[ex.dayOfWeek] = [];
-      grouped[ex.dayOfWeek].push(ex);
-    });
-    return grouped;
+  const handleViewPlan = (planId: string) => {
+    setViewingPlanId(planId);
   };
+
+  const handleBackToList = () => {
+    setViewingPlanId(null);
+  };
+
+  // Se estiver visualizando uma ficha específica
+  if (viewingPlanId) {
+    return (
+      <PlanDetailView 
+        planId={viewingPlanId}
+        exercises={exercises}
+        onBack={handleBackToList}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -284,69 +442,73 @@ export function WorkoutPlanner() {
         </div>
       )}
 
-      {/* Plans List */}
+      {/* Plans Grid */}
       {workoutPlans.length > 0 ? (
-        <div className="space-y-6">
-          {workoutPlans.map((plan) => {
-            const groupedExercises = groupExercisesByDay(plan.exercises);
-            
-            return (
-              <div key={plan._id} className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-                <div className="flex justify-between items-center mb-6">
-                  <h4 className="text-xl font-semibold text-white">{plan.name}</h4>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEdit(plan._id)}
-                      className="text-blue-400 hover:text-blue-300 text-sm py-2 px-3 border border-blue-400 rounded hover:bg-blue-400/10 transition-colors"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleDelete(plan._id)}
-                      className="text-red-400 hover:text-red-300 text-sm py-2 px-3 border border-red-400 rounded hover:bg-red-400/10 transition-colors"
-                    >
-                      Excluir
-                    </button>
-                  </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {workoutPlans.map((plan) => (
+            <div 
+              key={plan._id} 
+              className="bg-gray-800 border border-gray-700 rounded-lg p-6 hover:border-blue-500 transition-colors cursor-pointer group"
+              onClick={() => handleViewPlan(plan._id)}
+            >
+              <div className="flex justify-between items-start mb-4">
+                <h4 className="text-xl font-semibold text-white group-hover:text-blue-400 transition-colors">
+                  {plan.name}
+                </h4>
+                <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => handleEdit(plan._id)}
+                    className="text-blue-400 hover:text-blue-300 p-1 rounded hover:bg-blue-400/10 transition-colors"
+                    title="Editar"
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    onClick={() => handleDelete(plan._id)}
+                    className="text-red-400 hover:text-red-300 p-1 rounded hover:bg-red-400/10 transition-colors"
+                    title="Excluir"
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-400">Total de exercícios:</span>
+                  <span className="text-white font-medium">{plan.exercises.length}</span>
+                </div>
+                
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-gray-400">Dias da semana:</span>
+                  <span className="text-white font-medium">
+                    {[...new Set(plan.exercises.map(ex => ex.dayOfWeek))].length}
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {DAYS_OF_WEEK.map((day) => {
-                    const dayExercises = groupedExercises[day.value] || [];
-                    if (dayExercises.length === 0) return null;
-
+                <div className="flex flex-wrap gap-1 mt-3">
+                  {[...new Set(plan.exercises.map(ex => ex.dayOfWeek))].map(day => {
+                    const dayInfo = DAYS_OF_WEEK.find(d => d.value === day);
                     return (
-                      <div key={day.value} className="bg-gray-700 p-4 rounded-lg">
-                        <h5 className="font-medium text-white mb-3 flex items-center">
-                          <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded mr-2">
-                            {day.short}
-                          </span>
-                          {day.label}
-                        </h5>
-                        <div className="space-y-3">
-                          {dayExercises.map((exercise, index) => {
-                            const exerciseData = exercises.find(ex => ex._id === exercise.exerciseId);
-                            return (
-                              <div key={index} className="text-sm bg-gray-600 p-3 rounded">
-                                <div className="font-medium text-white mb-1">{exerciseData?.name}</div>
-                                <div className="text-gray-300 text-xs mb-1">
-                                  {exercise.sets} séries × {exercise.reps} reps
-                                  {exercise.weight > 0 && ` @ ${exercise.weight}kg`}
-                                </div>
-                                {exercise.notes && (
-                                  <div className="text-gray-400 text-xs">{exercise.notes}</div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
+                      <span 
+                        key={day}
+                        className="bg-blue-600 text-white text-xs px-2 py-1 rounded"
+                      >
+                        {dayInfo?.short}
+                      </span>
                     );
                   })}
                 </div>
               </div>
-            );
-          })}
+
+              <div className="mt-4 pt-4 border-t border-gray-700">
+                <div className="text-sm text-gray-400 group-hover:text-blue-400 transition-colors flex items-center">
+                  <span>Clique para ver detalhes</span>
+                  <span className="ml-2">→</span>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div className="text-center py-12 bg-gray-800 border border-gray-700 rounded-lg">

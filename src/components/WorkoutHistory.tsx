@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { toast } from "sonner";
 
 export function WorkoutHistory() {
   const [selectedExercise, setSelectedExercise] = useState<string>("");
@@ -11,14 +12,28 @@ export function WorkoutHistory() {
     api.workoutSessions.getExerciseHistory,
     selectedExercise ? { exerciseId: selectedExercise as any } : "skip"
   ) || [];
+  const deleteSession = useMutation(api.workoutSessions.remove);
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    // Parse the date string as local date to avoid timezone issues
+    const [year, month, day] = dateString.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
     return date.toLocaleDateString('pt-BR', {
       weekday: 'short',
       day: '2-digit',
       month: '2-digit',
     });
+  };
+
+  const handleDeleteSession = async (sessionId: string, sessionDate: string) => {
+    if (confirm(`Tem certeza que deseja excluir o treino do dia ${formatDate(sessionDate)}? Esta ação não pode ser desfeita.`)) {
+      try {
+        await deleteSession({ id: sessionId as any });
+        toast.success("Treino excluído com sucesso!");
+      } catch (error) {
+        toast.error("Erro ao excluir treino");
+      }
+    }
   };
 
   const getTotalVolume = (session: any) => {
@@ -123,6 +138,15 @@ export function WorkoutHistory() {
                     <span>💪 {session.exercises.length} exercícios</span>
                     <span>📊 {getTotalVolume(session).toFixed(0)}kg volume</span>
                   </div>
+                </div>
+                <div className="mt-4 md:mt-0">
+                  <button
+                    onClick={() => handleDeleteSession(session._id, session.date)}
+                    className="text-red-400 hover:text-red-300 text-sm py-2 px-3 border border-red-400 rounded hover:bg-red-400/10 transition-colors"
+                    title="Excluir treino"
+                  >
+                    🗑️ Excluir
+                  </button>
                 </div>
               </div>
 

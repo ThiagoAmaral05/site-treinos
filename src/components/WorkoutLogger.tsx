@@ -3,16 +3,46 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
 
+const DAYS_OF_WEEK = [
+  { value: "monday", label: "Segunda-feira", short: "SEG" },
+  { value: "tuesday", label: "Terça-feira", short: "TER" },
+  { value: "wednesday", label: "Quarta-feira", short: "QUA" },
+  { value: "thursday", label: "Quinta-feira", short: "QUI" },
+  { value: "friday", label: "Sexta-feira", short: "SEX" },
+  { value: "saturday", label: "Sábado", short: "SAB" },
+  { value: "sunday", label: "Domingo", short: "DOM" },
+];
+
+const getDayOfWeekValue = (date: Date) => {
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  return dayNames[date.getDay()];
+};
+
 export function WorkoutLogger() {
-  const today = new Date().toISOString().split('T')[0];
+  // Get today's date in local timezone to avoid timezone issues
+  const getLocalDateString = (date: Date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
+  const today = getLocalDateString();
+  const todayDayOfWeek = getDayOfWeekValue(new Date());
+  
   const [selectedDate, setSelectedDate] = useState(today);
   const [duration, setDuration] = useState<number>(0);
   const [notes, setNotes] = useState("");
   const [workoutExercises, setWorkoutExercises] = useState<any[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<string>("");
+  const [workoutMode, setWorkoutMode] = useState<"manual" | "plan">("manual");
+  const [workoutStarted, setWorkoutStarted] = useState(false);
 
   const exercises = useQuery(api.exercises.list) || [];
+  const workoutPlans = useQuery(api.workoutPlans.list) || [];
   const todaySession = useQuery(api.workoutSessions.getByDate, { date: selectedDate });
   const saveSession = useMutation(api.workoutSessions.save);
+  const deleteSession = useMutation(api.workoutSessions.remove);
 
   useEffect(() => {
     if (todaySession) {
@@ -23,12 +53,55 @@ export function WorkoutLogger() {
         exercise: ex.exercise,
         sets: ex.sets,
       })));
+      setWorkoutStarted(true);
     } else {
+      // Reset everything when no session exists
       setDuration(0);
       setNotes("");
       setWorkoutExercises([]);
+      setWorkoutStarted(false);
+      setWorkoutMode("manual");
+      setSelectedPlan("");
     }
   }, [todaySession]);
+
+  const loadPlanForToday = (planId: string) => {
+    const plan = workoutPlans.find(p => p._id === planId);
+    if (!plan) return;
+
+    const currentDayOfWeek = getDayOfWeekValue(new Date(selectedDate));
+    const todayExercises = plan.exercises.filter(ex => ex.dayOfWeek === currentDayOfWeek);
+
+    if (todayExercises.length === 0) {
+      toast.info(`Nenhum exercício programado para hoje (${DAYS_OF_WEEK.find(d => d.value === currentDayOfWeek)?.label}) nesta ficha`);
+      return;
+    }
+
+    const planWorkoutExercises = todayExercises.map(planEx => {
+      const exercise = exercises.find(ex => ex._id === planEx.exerciseId);
+      return {
+        exerciseId: planEx.exerciseId,
+        exercise,
+        sets: Array.from({ length: planEx.sets }, () => ({
+          reps: parseInt(planEx.reps.split('-')[0]) || 0,
+          weight: planEx.weight || 0,
+          completed: false,
+        })),
+        planNotes: planEx.notes,
+      };
+    });
+
+    setWorkoutExercises(planWorkoutExercises);
+    setWorkoutMode("plan");
+    setWorkoutStarted(true);
+    toast.success(`Ficha "${plan.name}" carregada para hoje!`);
+  };
+
+  const startManualWorkout = () => {
+    setWorkoutStarted(true);
+    setWorkoutMode("manual");
+    addExercise();
+  };
 
   const addExercise = () => {
     setWorkoutExercises([
@@ -97,6 +170,28 @@ export function WorkoutLogger() {
     }
   };
 
+  const clearWorkout = async () => {
+    if (confirm("Tem certeza que deseja excluir o treino atual? Esta ação não pode ser desfeita.")) {
+      try {
+        // If there's an existing session, delete it from the database
+        if (todaySession) {
+          await deleteSession({ id: todaySession._id });
+          toast.success("Treino excluído com sucesso!");
+        }
+        
+        // Reset all local state
+        setWorkoutExercises([]);
+        setWorkoutMode("manual");
+        setSelectedPlan("");
+        setDuration(0);
+        setNotes("");
+        setWorkoutStarted(false);
+      } catch (error) {
+        toast.error("Erro ao excluir treino");
+      }
+    }
+  };
+
   const getTotalVolume = () => {
     return workoutExercises.reduce((total, ex) => {
       return total + ex.sets.reduce((setTotal: number, set: any) => {
@@ -117,13 +212,100 @@ export function WorkoutLogger() {
     }, 0);
   };
 
+  const getCurrentDayPlans = () => {
+    const currentDayOfWeek = getDayOfWeekValue(new Date(selectedDate));
+    return workoutPlans.filter(plan => 
+      plan.exercises.some(ex => ex.dayOfWeek === currentDayOfWeek)
+    );
+  };
+
+  const currentDayPlans = getCurrentDayPlans();
+  const currentDayName = DAYS_OF_WEEK.find(d => d.value === getDayOfWeekValue(new Date(selectedDate)))?.label;
+
+  // If workout hasn't started, show the start screen
+  if (!workoutStarted) {
+    return (
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+            <div>
+              <h3 className="text-lg font-medium text-white">Treino do Dia</h3>
+              <p className="text-sm text-gray-400">Escolha como começar seu treino</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-3 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Start Workout Options */}
+        <div className="text-center py-12 bg-gray-800 border border-gray-700 rounded-lg">
+          <div className="text-6xl mb-4">💪</div>
+          <h3 className="text-lg font-medium text-white mb-2">Pronto para treinar?</h3>
+          <p className="text-gray-400 mb-8">
+            Escolha uma ficha de treino ou comece um treino manual
+          </p>
+          
+          <div className="flex flex-col items-center gap-4">
+            <button
+              onClick={startManualWorkout}
+              className="bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 transition-colors text-lg font-medium"
+            >
+              🏋️ Começar Treino Manual
+            </button>
+            
+            {currentDayPlans.length > 0 && (
+              <div className="text-sm text-gray-400 mb-4">ou escolha uma ficha:</div>
+            )}
+          </div>
+        </div>
+
+        {/* Plan Selection */}
+        {currentDayPlans.length > 0 && (
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+            <h4 className="text-lg font-medium text-white mb-4">Fichas Disponíveis para {currentDayName}</h4>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {currentDayPlans.map((plan) => {
+                const todayExercises = plan.exercises.filter(ex => 
+                  ex.dayOfWeek === getDayOfWeekValue(new Date(selectedDate))
+                );
+                
+                return (
+                  <div key={plan._id} className="bg-gray-700 border border-gray-600 rounded-lg p-4">
+                    <h5 className="font-medium text-white mb-2">{plan.name}</h5>
+                    <p className="text-sm text-gray-400 mb-3">
+                      {todayExercises.length} exercícios para hoje
+                    </p>
+                    <button
+                      onClick={() => loadPlanForToday(plan._id)}
+                      className="w-full bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 transition-colors text-sm"
+                    >
+                      Usar Esta Ficha
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header with Stats */}
       <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
           <div>
-            <h3 className="text-lg font-medium text-white">Treino do Dia</h3>
+            <h3 className="text-lg font-medium text-white">Treino em Andamento</h3>
             <p className="text-sm text-gray-400">Registre seu treino e acompanhe seu progresso</p>
           </div>
           <div className="flex items-center gap-4">
@@ -164,6 +346,19 @@ export function WorkoutLogger() {
             </div>
           </div>
         )}
+
+        {/* Workout Mode Indicator */}
+        <div className="mt-4 pt-4 border-t border-gray-600 flex justify-between items-center">
+          <div className="text-sm text-gray-400">
+            {workoutMode === "plan" ? "🎯 Usando ficha de treino" : "✏️ Treino manual"}
+          </div>
+          <button
+            onClick={clearWorkout}
+            className="text-red-400 hover:text-red-300 text-sm px-3 py-1 border border-red-400 rounded hover:bg-red-400/10 transition-colors"
+          >
+            Excluir Treino
+          </button>
+        </div>
       </div>
 
       {/* Workout Info */}
@@ -219,6 +414,12 @@ export function WorkoutLogger() {
                 🗑️
               </button>
             </div>
+
+            {workoutEx.planNotes && (
+              <div className="mb-4 p-3 bg-blue-900/30 border border-blue-700/50 rounded-lg">
+                <p className="text-sm text-blue-200">💡 {workoutEx.planNotes}</p>
+              </div>
+            )}
 
             {workoutEx.exerciseId && (
               <div>
@@ -296,20 +497,6 @@ export function WorkoutLogger() {
           <div>Adicionar Exercício</div>
         </button>
       </div>
-
-      {workoutExercises.length === 0 && (
-        <div className="text-center py-12 bg-gray-800 border border-gray-700 rounded-lg">
-          <div className="text-6xl mb-4">📝</div>
-          <h3 className="text-lg font-medium text-white mb-2">Pronto para treinar?</h3>
-          <p className="text-gray-400 mb-6">Adicione exercícios e registre suas séries para acompanhar seu progresso</p>
-          <button
-            onClick={addExercise}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Começar Treino
-          </button>
-        </div>
-      )}
     </div>
   );
 }

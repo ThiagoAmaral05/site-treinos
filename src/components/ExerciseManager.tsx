@@ -23,6 +23,8 @@ export function ExerciseManager() {
     muscleGroup: "",
   });
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [filterMuscleGroup, setFilterMuscleGroup] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState("");
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -101,13 +103,34 @@ export function ExerciseManager() {
     if (imageInputRef.current) imageInputRef.current.value = "";
   };
 
+  // Filter exercises based on muscle group and search term
+  const filteredExercises = exercises.filter(exercise => {
+    const matchesMuscleGroup = !filterMuscleGroup || exercise.muscleGroup === filterMuscleGroup;
+    const matchesSearch = !searchTerm || 
+      exercise.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      exercise.description?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    return matchesMuscleGroup && matchesSearch;
+  });
+
+  // Get exercise count by muscle group
+  const getExerciseCountByGroup = (group: string) => {
+    return exercises.filter(ex => ex.muscleGroup === group).length;
+  };
+
+  const clearFilters = () => {
+    setFilterMuscleGroup("");
+    setSearchTerm("");
+  };
+
   return (
     <div className="space-y-6">
       {/* Action Bar */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-medium text-white">
-            {exercises.length} exercício{exercises.length !== 1 ? 's' : ''} cadastrado{exercises.length !== 1 ? 's' : ''}
+            {filteredExercises.length} de {exercises.length} exercício{exercises.length !== 1 ? 's' : ''} 
+            {filterMuscleGroup && ` - ${filterMuscleGroup}`}
           </h3>
           <p className="text-sm text-gray-400">Gerencie sua biblioteca de exercícios</p>
         </div>
@@ -118,6 +141,81 @@ export function ExerciseManager() {
           <span className="mr-2">+</span>
           Novo Exercício
         </button>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+        <h4 className="text-lg font-medium text-white mb-4">Filtros</h4>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-300">Buscar por nome</label>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white placeholder-gray-400"
+              placeholder="Digite o nome do exercício..."
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-300">Grupo Muscular</label>
+            <select
+              value={filterMuscleGroup}
+              onChange={(e) => setFilterMuscleGroup(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white"
+            >
+              <option value="">Todos os grupos</option>
+              {MUSCLE_GROUPS.map((group) => (
+                <option key={group} value={group}>
+                  {group} ({getExerciseCountByGroup(group)})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-end">
+            <button
+              onClick={clearFilters}
+              className="w-full bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-500 transition-colors"
+            >
+              Limpar Filtros
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Filter Buttons */}
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setFilterMuscleGroup("")}
+            className={`px-3 py-1 rounded-full text-sm transition-colors ${
+              !filterMuscleGroup 
+                ? "bg-blue-600 text-white" 
+                : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+            }`}
+          >
+            Todos ({exercises.length})
+          </button>
+          {MUSCLE_GROUPS.map((group) => {
+            const count = getExerciseCountByGroup(group);
+            if (count === 0) return null;
+            
+            return (
+              <button
+                key={group}
+                onClick={() => setFilterMuscleGroup(group)}
+                className={`px-3 py-1 rounded-full text-sm transition-colors ${
+                  filterMuscleGroup === group 
+                    ? "bg-blue-600 text-white" 
+                    : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                }`}
+              >
+                {group} ({count})
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Form */}
@@ -194,9 +292,9 @@ export function ExerciseManager() {
       )}
 
       {/* Exercise Grid */}
-      {exercises.length > 0 ? (
+      {filteredExercises.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {exercises.map((exercise) => (
+          {filteredExercises.map((exercise) => (
             <div key={exercise._id} className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden hover:border-gray-600 transition-colors">
               {exercise.imageUrl && (
                 <img
@@ -235,15 +333,42 @@ export function ExerciseManager() {
         </div>
       ) : (
         <div className="text-center py-12 bg-gray-800 border border-gray-700 rounded-lg">
-          <div className="text-6xl mb-4">🏋️</div>
-          <h3 className="text-lg font-medium text-white mb-2">Nenhum exercício cadastrado</h3>
-          <p className="text-gray-400 mb-6">Comece criando seus primeiros exercícios para montar suas fichas de treino</p>
-          <button
-            onClick={() => setIsCreating(true)}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Criar Primeiro Exercício
-          </button>
+          {exercises.length === 0 ? (
+            <>
+              <div className="text-6xl mb-4">🏋️</div>
+              <h3 className="text-lg font-medium text-white mb-2">Nenhum exercício cadastrado</h3>
+              <p className="text-gray-400 mb-6">Comece criando seus primeiros exercícios para montar suas fichas de treino</p>
+              <button
+                onClick={() => setIsCreating(true)}
+                className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Criar Primeiro Exercício
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="text-6xl mb-4">🔍</div>
+              <h3 className="text-lg font-medium text-white mb-2">Nenhum exercício encontrado</h3>
+              <p className="text-gray-400 mb-6">
+                Tente ajustar os filtros ou criar um novo exercício
+                {filterMuscleGroup && ` para o grupo "${filterMuscleGroup}"`}
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={clearFilters}
+                  className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-500 transition-colors"
+                >
+                  Limpar Filtros
+                </button>
+                <button
+                  onClick={() => setIsCreating(true)}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Criar Exercício
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

@@ -28,7 +28,7 @@ export function GymTracker() {
       {/* Sidebar */}
       <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-800 transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0`}>
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-700">
-          <h1 className="text-xl font-bold text-blue-400">💪 Gym Tracker</h1>
+          <h1 className="text-xl font-bold text-blue-400">Gym Tracker</h1>
           <button
             onClick={() => setSidebarOpen(false)}
             className="lg:hidden text-gray-400 hover:text-white"
@@ -78,7 +78,6 @@ export function GymTracker() {
                 </div>
               </div>
             </div>
-            <SignOutButton />
           </div>
         </div>
       </div>
@@ -115,19 +114,20 @@ export function GymTracker() {
             </div>
             
             <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <div className="text-sm font-medium text-white">
-                  Bem-vindo, {loggedInUser?.name || 'Usuário'}!
+              <div className="flex items-start justify-between text-sm font-medium text-white gap-x-6">
+                <div className="flex flex-col text-right">
+                  <span>Bem-vindo {loggedInUser?.email}!</span>
+                  <span className="text-sm text-gray-300 font-normal">
+                    {new Date().toLocaleDateString('pt-BR', { 
+                      weekday: 'long', 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </span>
                 </div>
-                <div className="text-xs text-gray-400">
-                  {new Date().toLocaleDateString('pt-BR', { 
-                    weekday: 'long', 
-                    year: 'numeric', 
-                    month: 'long', 
-                    day: 'numeric' 
-                  })}
+                  <SignOutButton />
                 </div>
-              </div>
               <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm lg:hidden">
                 {loggedInUser?.name?.charAt(0) || loggedInUser?.email?.charAt(0) || 'U'}
               </div>

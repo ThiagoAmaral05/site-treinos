@@ -137,3 +137,18 @@ export const save = mutation({
     }
   },
 });
+
+export const remove = mutation({
+  args: { id: v.id("workoutSessions") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const session = await ctx.db.get(args.id);
+    if (!session || session.userId !== userId) {
+      throw new Error("Session not found or unauthorized");
+    }
+
+    await ctx.db.delete(args.id);
+  },
+});
