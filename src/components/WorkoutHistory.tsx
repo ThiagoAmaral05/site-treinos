@@ -5,10 +5,10 @@ import { toast } from "sonner";
 
 export function WorkoutHistory() {
   const [selectedExercise, setSelectedExercise] = useState<string>("");
-  const [selectedPlan, setSelectedPlan] = useState<string>("");
-  
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
   const exercises = useQuery(api.exercises.list) || [];
-  const workoutPlans = useQuery(api.workoutPlans.list) || [];
   const workoutHistory = useQuery(api.workoutSessions.getHistory, { limit: 30 }) || [];
   const exerciseHistory = useQuery(
     api.workoutSessions.getExerciseHistory,
@@ -17,7 +17,6 @@ export function WorkoutHistory() {
   const deleteSession = useMutation(api.workoutSessions.remove);
 
   const formatDate = (dateString: string) => {
-    // Parse the date string as local date to avoid timezone issues
     const [year, month, day] = dateString.split('-').map(Number);
     const date = new Date(year, month - 1, day);
     return date.toLocaleDateString('pt-BR', {
@@ -50,11 +49,10 @@ export function WorkoutHistory() {
     const totalWorkouts = workoutHistory.length;
     const totalDuration = workoutHistory.reduce((total, session) => total + (session.duration || 0), 0);
     const avgDuration = totalWorkouts > 0 ? Math.round(totalDuration / totalWorkouts) : 0;
-    
-    // Calculate average weight across all sets
+
     let totalWeight = 0;
     let totalSets = 0;
-    
+
     workoutHistory.forEach(session => {
       session.exercises.forEach((ex: any) => {
         ex.sets.forEach((set: any) => {
@@ -65,34 +63,30 @@ export function WorkoutHistory() {
         });
       });
     });
-    
+
     const avgWeight = totalSets > 0 ? Math.round(totalWeight / totalSets) : 0;
 
     return { totalWorkouts, avgWeight, avgDuration };
   };
 
-  // Filter workout history based on selected plan
-  const getFilteredHistory = () => {
-    if (!selectedPlan) return workoutHistory;
-    
-    const selectedPlanData = workoutPlans.find(p => p._id === selectedPlan);
-    if (!selectedPlanData) return workoutHistory;
-    
-    const planExerciseIds = selectedPlanData.exercises.map(ex => ex.exerciseId);
-    
-    return workoutHistory.filter(session => {
-      return session.exercises.some((ex: any) => 
-        planExerciseIds.includes(ex.exerciseId)
-      );
+  const getFilteredHistoryByDate = () => {
+    if (!startDate && !endDate) return workoutHistory;
+
+    return workoutHistory.filter((session) => {
+      const sessionDate = new Date(session.date);
+      const start = startDate ? new Date(startDate) : null;
+      const end = endDate ? new Date(endDate) : null;
+
+      return (!start || sessionDate >= start) && (!end || sessionDate <= end);
     });
   };
 
   const stats = getOverallStats();
-  const filteredHistory = getFilteredHistory();
+  const filteredHistory = getFilteredHistoryByDate();
 
   return (
     <div className="space-y-6">
-      {/* Stats Overview */}
+      {/* Estatísticas */}
       <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
         <h3 className="text-lg font-medium text-white mb-4">Estatísticas Gerais</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -111,18 +105,15 @@ export function WorkoutHistory() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Filtros */}
       <div className="bg-gray-800 border border-gray-700 rounded-lg p-6">
         <h4 className="text-lg font-medium text-white mb-4">Filtros</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium mb-2 text-gray-300">Filtrar por Exercício</label>
             <select
               value={selectedExercise}
-              onChange={(e) => {
-                setSelectedExercise(e.target.value);
-                setSelectedPlan("");
-              }}
+              onChange={(e) => setSelectedExercise(e.target.value)}
               className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white"
             >
               <option value="">Todos os exercícios</option>
@@ -134,30 +125,31 @@ export function WorkoutHistory() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium mb-2 text-gray-300">Filtrar por Ficha</label>
-            <select
-              value={selectedPlan}
-              onChange={(e) => {
-                setSelectedPlan(e.target.value);
-                setSelectedExercise("");
-              }}
+            <label className="block text-sm font-medium mb-2 text-gray-300">Data Início</label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
               className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white"
-            >
-              <option value="">Todas as fichas</option>
-              {workoutPlans.map((plan) => (
-                <option key={plan._id} value={plan._id}>
-                  {plan.name}
-                </option>
-              ))}
-            </select>
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-300">Data Fim</label>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-600 rounded-lg bg-gray-700 text-white"
+            />
           </div>
         </div>
-        {(selectedExercise || selectedPlan) && (
+        {(selectedExercise || startDate || endDate) && (
           <div className="mt-4">
             <button
               onClick={() => {
                 setSelectedExercise("");
-                setSelectedPlan("");
+                setStartDate("");
+                setEndDate("");
               }}
               className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-500 transition-colors text-sm"
             >
@@ -167,7 +159,7 @@ export function WorkoutHistory() {
         )}
       </div>
 
-      {/* Exercise-specific History */}
+      {/* Histórico por exercício */}
       {selectedExercise && exerciseHistory.length > 0 && (
         <div>
           <h4 className="text-lg font-medium text-white mb-4">
@@ -196,78 +188,66 @@ export function WorkoutHistory() {
         </div>
       )}
 
-      {/* Plan-filtered History */}
-      {selectedPlan && (
-        <div>
-          <h4 className="text-lg font-medium text-white mb-4">
-            Histórico da Ficha: {workoutPlans.find(p => p._id === selectedPlan)?.name}
-          </h4>
-        </div>
-      )}
-
-      {/* General Workout History */}
-      {!selectedExercise && (
-        <div className="space-y-4">
-          <h4 className="text-lg font-medium text-white">
-            {selectedPlan ? `Treinos da Ficha: ${workoutPlans.find(p => p._id === selectedPlan)?.name}` : 'Histórico de Treinos'}
-          </h4>
-          {filteredHistory.map((session) => (
-            <div key={session._id} className="bg-gray-800 border border-gray-700 rounded-lg p-6">
-              <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
-                <div>
-                  <h5 className="text-lg font-semibold text-white">
-                    {formatDate(session.date)}
-                  </h5>
-                  <div className="text-sm text-gray-400 flex flex-wrap gap-4 mt-1">
-                    {session.duration && <span>⏱️ {session.duration} min</span>}
-                    <span>💪 {session.exercises.length} exercícios</span>
-                    <span>📊 {getTotalVolume(session).toFixed(0)}kg volume</span>
-                  </div>
-                </div>
-                <div className="mt-4 md:mt-0">
-                  <button
-                    onClick={() => handleDeleteSession(session._id, session.date)}
-                    className="text-red-400 hover:text-red-300 text-sm py-2 px-3 border border-red-400 rounded hover:bg-red-400/10 transition-colors"
-                    title="Excluir treino"
-                  >
-                    🗑️ Excluir
-                  </button>
+      {/* Histórico geral */}
+      <div className="space-y-4">
+        <h4 className="text-lg font-medium text-white">
+          Histórico de Treinos
+        </h4>
+        {filteredHistory.map((session) => (
+          <div key={session._id} className="bg-gray-800 border border-gray-700 rounded-lg p-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
+              <div>
+                <h5 className="text-lg font-semibold text-white">
+                  {formatDate(session.date)}
+                </h5>
+                <div className="text-sm text-gray-400 flex flex-wrap gap-4 mt-1">
+                  {session.duration && <span>⏱️ {session.duration} min</span>}
+                  <span>💪 {session.exercises.length} exercícios</span>
                 </div>
               </div>
-
-              {session.notes && (
-                <div className="bg-yellow-900/30 border border-yellow-700/50 p-3 rounded-lg mb-4">
-                  <p className="text-sm text-yellow-200">📝 {session.notes}</p>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {session.exercises.map((ex: any, index: number) => (
-                  <div key={index} className="bg-gray-700 p-4 rounded-lg">
-                    <h6 className="font-medium mb-2 text-white">
-                      {ex.exercise?.name}
-                      <span className="text-sm text-gray-400 ml-2">
-                        ({ex.exercise?.muscleGroup})
-                      </span>
-                    </h6>
-                    <div className="space-y-1">
-                      {ex.sets.map((set: any, setIndex: number) => (
-                        <div key={setIndex} className="text-sm flex justify-between items-center text-gray-300 bg-gray-600 p-2 rounded">
-                          <span>Série {setIndex + 1}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{set.reps} × {set.weight}kg</span>
-                            {set.completed && <span className="text-green-400">✅</span>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+              <div className="mt-4 md:mt-0">
+                <button
+                  onClick={() => handleDeleteSession(session._id, session.date)}
+                  className="text-red-400 hover:text-red-300 text-sm py-2 px-3 border border-red-400 rounded hover:bg-red-400/10 transition-colors"
+                  title="Excluir treino"
+                >
+                  Excluir
+                </button>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+
+            {session.notes && (
+              <div className="bg-yellow-900/30 border border-yellow-700/50 p-3 rounded-lg mb-4">
+                <p className="text-sm text-yellow-200">📝 {session.notes}</p>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {session.exercises.map((ex: any, index: number) => (
+                <div key={index} className="bg-gray-700 p-4 rounded-lg">
+                  <h6 className="font-medium mb-2 text-white">
+                    {ex.exercise?.name}
+                    <span className="text-sm text-gray-400 ml-2">
+                      ({ex.exercise?.muscleGroup})
+                    </span>
+                  </h6>
+                  <div className="space-y-1">
+                    {ex.sets.map((set: any, setIndex: number) => (
+                      <div key={setIndex} className="text-sm flex justify-between items-center text-gray-300 bg-gray-600 p-2 rounded">
+                        <span>Série {setIndex + 1}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{set.reps} × {set.weight}kg</span>
+                          {set.completed && <span className="text-green-400">✅</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
 
       {workoutHistory.length === 0 && (
         <div className="text-center py-12 bg-gray-800 border border-gray-700 rounded-lg">
@@ -277,12 +257,12 @@ export function WorkoutHistory() {
         </div>
       )}
 
-      {filteredHistory.length === 0 && selectedPlan && workoutHistory.length > 0 && (
+      {filteredHistory.length === 0 && workoutHistory.length > 0 && (
         <div className="text-center py-12 bg-gray-800 border border-gray-700 rounded-lg">
           <div className="text-6xl mb-4">🔍</div>
           <h3 className="text-lg font-medium text-white mb-2">Nenhum treino encontrado</h3>
           <p className="text-gray-400 mb-6">
-            Não há treinos registrados para a ficha selecionada
+            Não há treinos registrados para o período selecionado
           </p>
         </div>
       )}

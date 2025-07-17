@@ -283,10 +283,6 @@ export function WorkoutLogger() {
               <div className="text-xs text-gray-400">Séries</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-purple-400">{getTotalVolume().toFixed(0)}kg</div>
-              <div className="text-xs text-gray-400">Volume</div>
-            </div>
-            <div className="text-center">
               <div className="text-2xl font-bold text-yellow-400">{duration}min</div>
               <div className="text-xs text-gray-400">Duração</div>
             </div>
